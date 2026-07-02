@@ -1,6 +1,7 @@
 // Shared types untuk hasil OCR label obat
 
 export interface OcrResult {
+  isLabelObat: boolean;
   namaObat: string;
   komposisi: string;
   dosis: string;

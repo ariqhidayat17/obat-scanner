@@ -1,85 +1,102 @@
-# Med Scanner (Obat Scanner)
+# ObatScan (Med Scanner)
 
-A React Native mobile application built with Expo, integrated with an Express & tRPC backend. This app uses Drizzle ORM for database operations and includes features like camera integration for scanning medications.
+Aplikasi mobile React Native berbasis Expo untuk memindai label obat, mendeteksi detail obat (komposisi, dosis, indikasi, dll), serta menganalisis interaksi antar obat menggunakan kecerdasan buatan.
 
-## 🚀 Tech Stack
+Aplikasi ini menggunakan **Hybrid 2-Stage OCR Pipeline**:
+1. **Stage 1 (PaddleOCR):** Mengekstrak teks mentah secara lokal di server. Unggul dalam membaca teks kecil, padat, dan miring di kemasan fisik obat.
+2. **Stage 2 (Gemini LLM):** Menerjemahkan, merapikan, dan memformat teks mentah menjadi data JSON terstruktur bahasa Indonesia yang mudah dipahami pasien awam.
 
-- **Frontend:** React Native, Expo, NativeWind (Tailwind CSS for React Native), Expo Router
-- **Backend:** Express, tRPC, Drizzle ORM (MySQL2)
-- **Database:** MySQL
-- **Language:** TypeScript
-- **Package Manager:** pnpm
+---
 
-## 🛡️ Robustness & Safety
+## 🚀 Fitur Utama & Tech Stack
 
-- **Graceful Error Handling:** tRPC backend includes try-catch wrappers for all AI model invocations (`invokeLLM`), returning user-friendly `TRPCError`s instead of crashing.
-- **Payload Limits:** Strict Zod validations are in place for the image OCR endpoint (max 8MB Base64 string limit) to prevent memory bloat and Out-Of-Memory (OOM) errors.
-- **Native Fallbacks:** Comprehensive error catching on the React Native side, ensuring users receive visual Alerts if hardware features (like the Camera) fail to initialize or capture.
+- **Frontend:** React Native (Expo), NativeWind (Tailwind CSS), Expo Router, Expo Camera
+- **Backend:** Express, tRPC (Type-safe API communication), Drizzle ORM (MySQL)
+- **OCR Engine:** PaddlePaddle & PaddleOCR (Python FastAPI Sidecar Service)
+- **AI Processing:** Google Gemini API (Multimodal Parser & Interaction Checker)
+- **Language:** TypeScript & Python
 
-## 📦 Prerequisites
+---
 
-Before you begin, ensure you have the following installed on your local machine:
-- [Node.js](https://nodejs.org/en/) (v18 or higher recommended)
-- [pnpm](https://pnpm.io/installation) (Package manager used for this project)
-- [Expo CLI](https://docs.expo.dev/get-started/installation/)
-- A running MySQL database instance.
+## 🛡️ Robustness & Fallback Resilience
+Aplikasi backend dilengkapi mekanisme **Automated Fallback**:
+- Jika Python OCR service offline atau mengalami kegagalan, server backend secara otomatis melakukan fallback dengan langsung mengirim foto ke Google Gemini Vision untuk diproses secara direct. Sistem dijamin robust dan tidak akan crash di sisi user.
 
-## 🛠 Installation & Setup
+---
 
-1. **Clone the repository (if you haven't already):**
-   ```bash
-   git clone <your-repo-url>
-   cd obat-scanner
-   ```
+## 🛠️ Langkah Instalasi & Setup
 
-2. **Install Dependencies:**
-   Since this project uses `pnpm`, run the following command to install all required packages:
-   ```bash
-   pnpm install
-   ```
-
-3. **Environment Variables:**
-   Create a `.env` file in the root directory based on `.env.example` (if available) or add the necessary environment variables for your database and API configurations:
-   ```env
-   # Example .env configuration
-   DATABASE_URL="mysql://user:password@localhost:3306/your_db_name"
-   ```
-
-4. **Database Migration:**
-   Generate and push the Drizzle schema to your database:
-   ```bash
-   pnpm run db:push
-   ```
-
-## 🚀 Running the App
-
-This project runs both the Metro bundler (for the Expo frontend) and the Express server concurrently.
-
-To start the development environment, simply run:
+### 1. Persiapan Backend Node.js
+Pastikan Anda menggunakan Node.js (v18 atau lebih baru). Di root direktori project, jalankan:
 ```bash
-pnpm run dev
+npm install
 ```
 
-Alternatively, you can run them separately:
-- **Backend Server only:** `pnpm run dev:server`
-- **Expo Frontend only:** `pnpm run dev:metro`
+### 2. Setup Environment Variables
+Buat file `.env` di root direktori project dan isi API key Gemini Anda:
+```env
+# Google Gemini API Key (Dapatkan di https://aistudio.google.com/apikey)
+GEMINI_API_KEY=AIzaSyDmIE78Okam...
 
-Once the Metro bundler starts, you can:
-- Press `a` to open on an Android emulator.
-- Press `i` to open on an iOS simulator.
-- Scan the QR code with the Expo Go app on your physical device.
+# URL sidecar server PaddleOCR
+PADDLE_OCR_URL=http://localhost:8001
+```
 
-## 📜 Available Scripts
+### 3. Setup Python OCR Service (PaddleOCR)
+Lakukan pembuatan Virtual Environment Python agar dependensi terisolasi dengan aman:
+```bash
+# Membuat virtualenv di dalam direktori ocr-service
+python3 -m venv ocr-service/venv
 
-- `pnpm run dev`: Starts both frontend and backend concurrently.
-- `pnpm run build`: Builds the backend server using esbuild.
-- `pnpm run start`: Starts the production build of the backend server.
-- `pnpm run lint`: Runs the Expo linter.
-- `pnpm run format`: Formats code using Prettier.
-- `pnpm run test`: Runs tests using Vitest.
+# Mengaktifkan virtualenv
+source ocr-service/venv/bin/activate
 
-## 🤝 Contributing
-Contributions are welcome. Please ensure that your code adheres to the existing linting and formatting rules.
+# Menginstall library yang diperlukan (FastAPI, Uvicorn, PaddleOCR, Pillow)
+pip install -r ocr-service/requirements.txt
+```
 
-## 📄 License
-Private (or insert your open source license here).
+---
+
+## 📡 Cara Menjalankan Server (Lokal)
+
+Anda perlu menjalankan dua service ini secara bersamaan di terminal terpisah:
+
+### Terminal 1: Jalankan Python OCR Service
+Mengaktifkan OCR engine lokal yang berjalan di port `8001`.
+```bash
+source ocr-service/venv/bin/activate
+python ocr-service/main.py
+```
+*(Pada run pertama, server akan otomatis mendownload model deteksi teks resmi dari server Paddle Paddle. Proses download hanya terjadi satu kali).*
+
+### Terminal 2: Jalankan Backend Node.js & Metro Bundler
+Mengaktifkan backend API utama (port `8080`) dan Metro bundler React Native (port `8081`).
+```bash
+npm run dev
+```
+
+---
+
+
+### Opsi A: Install Langsung ke HP Fisik (Paling Praktis)
+1. Sambungkan HP Android Anda ke komputer via kabel USB.
+2. Pastikan **Developer Options** dan **USB Debugging** di HP Anda sudah aktif.
+3. Kirim file `app-release.apk` ke HP (via share link/kabel), lalu klik file tersebut di HP untuk menginstall.
+4. Atau, jika Anda memiliki Android SDK tool (`adb`) terinstall di terminal, jalankan:
+   ```bash
+   adb install android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+### Opsi B: Install ke Android Emulator
+1. Nyalakan emulator Android Anda (via Android Studio).
+2. Drag and drop file `app-release.apk` dari Finder/Explorer langsung ke dalam layar emulator.
+3. Aplikasi akan terinstall otomatis dan ikon **ObatScan** akan muncul di app drawer emulator.
+
+---
+
+## 📜 Tersedia Perintah Script Lainnya (Node.js)
+
+- `npm run dev`: Menjalankan frontend Metro dan backend API secara bersamaan.
+- `npm run test`: Menjalankan unit tests dengan Vitest.
+- `npm run format`: Merapikan format penulisan kode menggunakan Prettier.
+- `npm run lint`: Memeriksa adanya error/warning penulisan kode dengan ESLint.

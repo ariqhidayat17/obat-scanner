@@ -6,6 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, type Message } from "./_core/llm";
 import { storagePut, storageGetSignedUrl } from "./storage";
+import { extractTextWithPaddle } from "./_core/paddleOcr";
 
 export const appRouter = router({
   system: systemRouter,
@@ -57,18 +58,31 @@ export const appRouter = router({
           publicImageUrl = storageUrl;
         }
 
+        // 2. Coba extract raw text menggunakan PaddleOCR
+        let paddleRawText = "";
+        let hasPaddleResult = false;
+        try {
+          console.log("Attempting PaddleOCR text extraction...");
+          paddleRawText = await extractTextWithPaddle(imageBase64);
+          hasPaddleResult = true;
+          console.log("PaddleOCR text extraction succeeded.");
+        } catch (ocrError) {
+          console.error("PaddleOCR failed or unavailable, falling back to direct LLM OCR:", ocrError);
+        }
 
         // 3. Kirim gambar ke LLM multimodal untuk OCR dan ekstraksi informasi obat
         const systemPrompt = `Kamu adalah sistem OCR (Optical Character Recognition) berbasis Deep Learning yang dirancang khusus untuk membaca, menerjemahkan, dan mengekstrak informasi dari label/kemasan obat.
-
+${hasPaddleResult ? "\nKami telah mengekstrak beberapa teks mentah menggunakan PaddleOCR untuk membantumu. Gunakan teks ini dan verifikasi dengan melihat gambar:\n" + paddleRawText + "\n" : ""}
 Tugasmu adalah:
-1. Membaca semua teks yang terlihat pada gambar label obat.
-2. Mengekstrak informasi terstruktur dari teks tersebut.
-3. MENERJEMAHKAN dan MENULISKAN semua informasi hasil ekstraksi (khususnya namaObat, komposisi, dosis, indikasi, kontraindikasi, efekSamping, penyimpanan, dll.) ke dalam BAHASA INDONESIA yang baik, benar, dan mudah dipahami oleh pasien awam, bahkan jika label asli pada kemasan obat menggunakan Bahasa Inggris atau bahasa asing lainnya.
-4. Mengembalikan hasil dalam format JSON yang terstruktur.
+1. PERTAMA, tentukan apakah gambar yang diberikan merupakan label/kemasan obat atau bukan. Perhatikan ciri-ciri label obat seperti: nama obat, komposisi/kandungan, dosis/aturan pakai, indikasi, kontraindikasi, efek samping, nomor registrasi BPOM/izin edar, nama produsen farmasi, tanggal kadaluarsa, dll. Jika gambar BUKAN label obat (misalnya spanduk, poster, dokumen, buku, papan nama, makanan, atau objek lain), maka set "isLabelObat" menjadi false.
+2. Membaca semua teks yang terlihat pada gambar.
+3. Jika gambar ADALAH label obat, ekstrak informasi terstruktur dari teks tersebut.
+4. MENERJEMAHKAN dan MENULISKAN semua informasi hasil ekstraksi (khususnya namaObat, komposisi, dosis, indikasi, kontraindikasi, efekSamping, penyimpanan, dll.) ke dalam BAHASA INDONESIA yang baik, benar, dan mudah dipahami oleh pasien awam, bahkan jika label asli pada kemasan obat menggunakan Bahasa Inggris atau bahasa asing lainnya.
+5. Mengembalikan hasil dalam format JSON yang terstruktur.
 
-Selalu kembalikan JSON dengan struktur berikut (isi dengan string kosong "" jika tidak ditemukan):
+Selalu kembalikan JSON dengan struktur berikut (isi dengan string kosong "" jika tidak ditemukan, atau jika bukan label obat):
 {
+  "isLabelObat": true/false,
   "namaObat": "nama produk obat",
   "komposisi": "kandungan/komposisi aktif (diterjemahkan/ditulis dalam Bahasa Indonesia)",
   "dosis": "aturan pakai dan dosis (diterjemahkan/ditulis dalam Bahasa Indonesia)",
@@ -82,7 +96,13 @@ Selalu kembalikan JSON dengan struktur berikut (isi dengan string kosong "" jika
   "beratBersih": "berat bersih/netto",
   "hargaEceranTertinggi": "HET jika ada",
   "rawText": "semua teks asli yang berhasil dibaca dari gambar (biarkan dalam bahasa aslinya untuk referensi), dipisahkan dengan newline"
-}`;
+}
+
+PENTING: Jika gambar BUKAN label obat, set isLabelObat ke false dan isi field lainnya dengan string kosong "".`;
+
+        const userPromptText = hasPaddleResult
+          ? "Berikut adalah raw text dari OCR:\n" + paddleRawText + "\nTolong verifikasi dengan gambar, lalu ekstrak dan kembalikan informasi detail obat dalam format JSON."
+          : "Tolong baca dan ekstrak semua informasi dari label obat pada gambar ini. Kembalikan hasil dalam format JSON yang telah ditentukan.";
 
         const messages: Message[] = [
           {
@@ -94,7 +114,7 @@ Selalu kembalikan JSON dengan struktur berikut (isi dengan string kosong "" jika
             content: [
               {
                 type: "text" as const,
-                text: "Tolong baca dan ekstrak semua informasi dari label obat pada gambar ini. Kembalikan hasil dalam format JSON yang telah ditentukan.",
+                text: userPromptText,
               },
               {
                 type: "image_url" as const,
@@ -133,6 +153,7 @@ Selalu kembalikan JSON dengan struktur berikut (isi dengan string kosong "" jika
         return {
           success: true,
           data: {
+            isLabelObat: ocrResult.isLabelObat ?? true,
             namaObat: ocrResult.namaObat ?? "",
             komposisi: ocrResult.komposisi ?? "",
             dosis: ocrResult.dosis ?? "",
@@ -206,7 +227,7 @@ Pedoman penting:
 
         const llmMessages: import("./_core/llm").Message[] = [
           { role: "system", content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
         ];
 
         let response;
@@ -244,7 +265,10 @@ Pedoman penting:
         const { drugs } = input;
 
         const drugList = drugs
-          .map((d, i) => `${i + 1}. ${d.namaObat}${d.komposisi ? ` (${d.komposisi})` : ""}`)
+          .map((d, i) => {
+            const detail = d.komposisi ? ` (${d.komposisi})` : "";
+            return `${i + 1}. ${d.namaObat}${detail}`;
+          })
           .join("\n");
 
         const systemPrompt = `Kamu adalah sistem pendeteksi interaksi obat berbasis AI yang akurat dan bertanggung jawab.

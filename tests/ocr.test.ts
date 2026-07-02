@@ -4,6 +4,7 @@ import type { OcrResult, ScanHistory } from "../shared/ocr-types";
 describe("OCR Types", () => {
   it("should have all required fields in OcrResult", () => {
     const result: OcrResult = {
+      isLabelObat: true,
       namaObat: "Paracetamol 500mg",
       komposisi: "Paracetamol 500mg",
       dosis: "3x sehari 1 tablet",
@@ -31,6 +32,7 @@ describe("OCR Types", () => {
       id: "1234567890",
       imageUri: "file:///path/to/image.jpg",
       result: {
+        isLabelObat: true,
         namaObat: "Amoxicillin",
         komposisi: "",
         dosis: "",
@@ -63,6 +65,7 @@ describe("OCR Types", () => {
 
   it("should handle empty OCR result fields gracefully", () => {
     const emptyResult: OcrResult = {
+      isLabelObat: false,
       namaObat: "",
       komposisi: "",
       dosis: "",
@@ -78,14 +81,17 @@ describe("OCR Types", () => {
       rawText: "",
     };
 
-    // All fields should be empty strings, not undefined/null
-    Object.values(emptyResult).forEach((val) => {
+    // All string fields should be empty strings, not undefined/null
+    const { isLabelObat: _, ...stringFields } = emptyResult;
+    Object.values(stringFields).forEach((val) => {
       expect(val).toBe("");
     });
+    expect(emptyResult.isLabelObat).toBe(false);
   });
 
   it("should correctly format OCR result for clipboard copy", () => {
     const result: OcrResult = {
+      isLabelObat: true,
       namaObat: "Paracetamol 500mg",
       komposisi: "Paracetamol 500mg",
       dosis: "3x sehari",

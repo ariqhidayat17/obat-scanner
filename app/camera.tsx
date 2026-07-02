@@ -7,7 +7,6 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -166,7 +165,6 @@ export default function CameraScreen() {
       }
     } catch (err) {
       console.error("Error taking picture:", err);
-      Alert.alert("Error", "Gagal mengambil foto. Silakan coba lagi.");
     } finally {
       setIsTaking(false);
     }

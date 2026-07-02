@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -61,12 +60,12 @@ function PulseBox({
   height,
   borderRadius = 8,
   style,
-}: {
+}: Readonly<{
   width: number | string;
   height: number;
   borderRadius?: number;
   style?: object;
-}) {
+}>) {
   const opacity = useSharedValue(1);
 
   useEffect(() => {
@@ -98,7 +97,7 @@ function PulseBox({
   );
 }
 
-function LoadingSkeleton({ colors }: { colors: ReturnType<typeof useColors> }) {
+function LoadingSkeleton({ colors }: Readonly<{ colors: ReturnType<typeof useColors> }>) {
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
       {/* Skeleton untuk nama obat */}
@@ -170,9 +169,9 @@ export default function ResultScreen() {
 
   const scanMutation = trpc.ocr.scan.useMutation({
     onSuccess: (data) => {
-      setOcrResult(data.data);
+      setOcrResult({ ...data.data, isLabelObat: Boolean(data.data.isLabelObat) });
       // Simpan URL S3 permanen jika berhasil upload ke storage
-      if (data.imageUrl && data.imageUrl.startsWith("/")) {
+      if (data.imageUrl?.startsWith("/")) {
         setServerImageUrl(`${getApiBaseUrl()}${data.imageUrl}`);
       }
     },
@@ -532,8 +531,88 @@ export default function ResultScreen() {
         {/* Animasi Loading Skeleton Premium */}
         {scanMutation.isPending && <LoadingSkeleton colors={colors} />}
 
+        {/* ─── Peringatan: Bukan Label Obat ────────────────────────────── */}
+        {ocrResult && !ocrResult.isLabelObat && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#FFF7ED",
+                borderWidth: 1.5,
+                borderColor: "#FB923C",
+                borderRadius: 16,
+                padding: 20,
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: "#FFEDD5",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <IconSymbol
+                  name="exclamationmark.triangle.fill"
+                  size={28}
+                  color="#EA580C"
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "800",
+                  color: "#9A3412",
+                  textAlign: "center",
+                }}
+              >
+                Bukan Label Obat
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: "#C2410C",
+                  textAlign: "center",
+                  lineHeight: 21,
+                  paddingHorizontal: 8,
+                }}
+              >
+                Peringatan: Objek yang terdeteksi bukan label obat. Silakan
+                unggah gambar label obat yang valid.
+              </Text>
+              <TouchableOpacity
+                style={{
+                  marginTop: 4,
+                  backgroundColor: "#EA580C",
+                  paddingHorizontal: 28,
+                  paddingVertical: 13,
+                  borderRadius: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                onPress={() => router.back()}
+              >
+                <IconSymbol name="camera.fill" size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 15,
+                    fontWeight: "700",
+                  }}
+                >
+                  Scan Ulang
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Hasil OCR */}
-        {ocrResult && (
+        {ocrResult?.isLabelObat && (
           <>
             <View style={styles.resultCard}>
               <View style={styles.namaObatCard}>

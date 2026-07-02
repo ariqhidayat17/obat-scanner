@@ -34,5 +34,7 @@ export const ENV = {
   forgeApiKey,
   /** URL base Forge Storage (hanya tersedia di Manus deploy). Kosong di dev lokal. */
   forgeStorageUrl,
+  /** URL untuk Python PaddleOCR sidecar service */
+  paddleOcrUrl: process.env.PADDLE_OCR_URL || "http://localhost:8001",
 };
 
