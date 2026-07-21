@@ -5,6 +5,7 @@
 set -e
 
 PORT=8001
+VENV_DIR=".venv"
 
 echo "=== Obat Scanner - PaddleOCR + ngrok ==="
 echo ""
@@ -17,22 +18,37 @@ if ! command -v ngrok &> /dev/null; then
     exit 1
 fi
 
-# Check if Python dependencies are installed
-if ! python3 -c "import paddleocr" &> /dev/null; then
-    echo "📦 Installing Python dependencies..."
-    pip3 install -r requirements.txt
+# Create virtual environment if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    echo "📦 Creating Python virtual environment..."
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Activate virtual environment
+source "$VENV_DIR/bin/activate"
+
+# Install dependencies if needed
+if ! python -c "import paddleocr" &> /dev/null 2>&1; then
+    echo "📦 Installing Python dependencies (first time, may take a few minutes)..."
+    pip install --upgrade pip
+    pip install -r requirements.txt
 fi
 
 echo "🚀 Starting PaddleOCR service on port $PORT..."
-python3 main.py &
+python main.py &
 OCR_PID=$!
 
 # Wait for service to be ready
-echo "⏳ Waiting for service to start..."
-for i in {1..30}; do
+echo "⏳ Waiting for service to start (downloading models on first run)..."
+for i in {1..60}; do
     if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
         echo "✅ PaddleOCR service is ready!"
         break
+    fi
+    if [ $i -eq 60 ]; then
+        echo "❌ Timeout waiting for service. Check logs above."
+        kill $OCR_PID 2>/dev/null
+        exit 1
     fi
     sleep 2
 done
