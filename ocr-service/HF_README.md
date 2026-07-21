@@ -3,16 +3,26 @@ title: Obat Scanner OCR
 emoji: 💊
 colorFrom: blue
 colorTo: green
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 4.44.1
+app_file: app.py
 pinned: false
 ---
 
 # Obat Scanner - PaddleOCR Service
 
-FastAPI service yang menggunakan PaddleOCR untuk mengekstrak teks dari foto kemasan obat.
+Gradio app yang menggunakan PaddleOCR untuk mengekstrak teks dari foto kemasan obat.
 
-## API Endpoint
+## Cara Deploy ke HuggingFace Spaces
+
+Upload file-file berikut ke Space baru:
+1. `app.py` — main application
+2. `requirements-hf.txt` → **rename jadi `requirements.txt`** saat upload
+3. File ini → **rename jadi `README.md`** saat upload
+
+## REST API Endpoint
+
+Selain UI Gradio, service ini juga menyediakan REST API:
 
 **POST** `/ocr`
 
