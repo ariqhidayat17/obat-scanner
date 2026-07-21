@@ -27,12 +27,31 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
+# Save original PATH (before venv changes it)
+ORIGINAL_PATH="$PATH"
+
 # Setup Python venv
 if [ ! -d "$VENV_DIR" ]; then
     echo "📦 Creating Python virtual environment..."
     python3 -m venv "$VENV_DIR"
 fi
 source "$VENV_DIR/bin/activate"
+
+# Restore original PATH so node/pnpm/npm are still accessible
+export PATH="$ORIGINAL_PATH"
+
+# Find pnpm or npm
+PNPM_CMD=""
+if command -v pnpm &> /dev/null; then
+    PNPM_CMD="pnpm"
+elif command -v npm &> /dev/null; then
+    PNPM_CMD="npm run"
+fi
+
+if [ -z "$PNPM_CMD" ]; then
+    echo "❌ Neither pnpm nor npm found. Install Node.js first."
+    exit 1
+fi
 
 # Install Python deps if needed
 if ! python -c "import paddleocr" &> /dev/null 2>&1; then
@@ -44,7 +63,7 @@ fi
 # Install Node.js deps if needed
 if [ ! -d "node_modules" ]; then
     echo "📦 Installing Node.js dependencies..."
-    pnpm install
+    $PNPM_CMD install
 fi
 
 # Create .env for local development (if not exists)
@@ -89,7 +108,7 @@ done
 
 echo ""
 echo "🚀 Starting backend on port $BACKEND_PORT..."
-pnpm run dev &
+$PNPM_CMD dev &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
