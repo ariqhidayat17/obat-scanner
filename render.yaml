@@ -14,5 +14,7 @@ services:
         value: production
       - key: BUILT_IN_FORGE_API_KEY
         sync: false  # Set manually in Render dashboard
+      - key: PADDLE_OCR_URL
+        sync: false  # Set to HuggingFace Spaces URL after deploying OCR service
       - key: PORT
         value: 3000
