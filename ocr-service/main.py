@@ -7,6 +7,10 @@ from paddleocr import PaddleOCR
 
 app = FastAPI(title="PaddleOCR Sidecar Service")
 
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
 # Initialize PaddleOCR (downloads models on first run)
 # Using English/Latin model by default which is highly optimized for medical terms and general text
 ocr = PaddleOCR(use_textline_orientation=True, lang="en")
@@ -49,4 +53,6 @@ async def perform_ocr(request: OCRRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    import os
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)
