@@ -1,15 +1,26 @@
 import base64
 import io
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
 from paddleocr import PaddleOCR
 
 app = FastAPI(title="PaddleOCR Sidecar Service")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.get("/health")
 async def health():
     return {"ok": True}
+
+import logging
+logging.getLogger("ppocr").setLevel(logging.ERROR)
 
 # Initialize PaddleOCR (downloads models on first run)
 # Using English/Latin model by default which is highly optimized for medical terms and general text
@@ -20,18 +31,20 @@ class OCRRequest(BaseModel):
 
 @app.post("/ocr")
 async def perform_ocr(request: OCRRequest):
+    print("Received OCR request")
     try:
         # Decode base64 image
         image_data = base64.b64decode(request.imageBase64.split(",")[-1])
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image = Image.open(io.BytesIO(image_data)).convert("L") # Konversi ke Grayscale
         
-        # Save temp image for PaddleOCR (needs file path or numpy array)
-        # We can pass numpy array directly by converting PIL image
+        print(f"Image received: {image.size}")
+        
         import numpy as np
         img_np = np.array(image)
         
         # Run OCR
-        result = ocr.ocr(img_np, cls=True)
+        result = ocr.ocr(img_np, cls=False) # Matikan classifier untuk testing
+        print(f"OCR result: {result}")
         
         # Extract text
         extracted_texts = []
@@ -39,8 +52,13 @@ async def perform_ocr(request: OCRRequest):
             for line in result[0]:
                 text = line[1][0]
                 confidence = line[1][1]
-                if confidence > 0.5:  # filter low confidence text
+                # Lower threshold to 0.3 to catch more label text
+                if confidence > 0.3:
                     extracted_texts.append(text)
+        
+        # Fallback: jika tidak ada teks, kembalikan semua hasil mentah untuk debug
+        if not extracted_texts and result and result[0]:
+            extracted_texts = [line[1][0] for line in result[0]]
                     
         raw_text = "\n".join(extracted_texts)
         return {
@@ -49,7 +67,13 @@ async def perform_ocr(request: OCRRequest):
             "lines": extracted_texts
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return clean error JSON instead of HTML
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 if __name__ == "__main__":
     import uvicorn

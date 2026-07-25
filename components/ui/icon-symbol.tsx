@@ -39,6 +39,10 @@ const MAPPING = {
   "xmark.octagon.fill": "report",
   "lightbulb.fill": "lightbulb",
   "info.circle.fill": "info",
+  "square.and.pencil": "edit",
+  "checkmark": "check",
+  "chevron.down": "expand-more",
+  "chevron.up": "expand-less",
 } as IconMapping;
 
 /**

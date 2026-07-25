@@ -6,7 +6,7 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -20,6 +20,7 @@ import { loadHistoryImage, deleteHistoryImage } from "@/lib/image-persistence";
 import type { ScanHistory, OcrResult } from "@/shared/ocr-types";
 import { ReminderModal } from "@/components/reminder-modal";
 import { scheduleReminder } from "@/lib/reminder";
+import { showAlert } from "@/lib/utils";
 
 const HISTORY_KEY = "obatscan_history";
 
@@ -63,19 +64,46 @@ export default function HistoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [item, setItem] = useState<ScanHistory | null>(null);
   const [isReminderVisible, setIsReminderVisible] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [showRawText, setShowRawText] = useState(false);
+
+  const handleSaveName = async () => {
+    if (!item) return;
+    const updatedResult = { ...item.result, namaObat: editedName.trim() };
+    const updatedItem = { ...item, result: updatedResult };
+
+    try {
+      const raw = await AsyncStorage.getItem(HISTORY_KEY);
+      if (raw) {
+        const history: ScanHistory[] = JSON.parse(raw);
+        const index = history.findIndex((h) => h.id === item.id);
+        if (index !== -1) {
+          history[index] = updatedItem;
+          await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+      }
+      setItem(updatedItem);
+      setIsEditingName(false);
+      showAlert("Tersimpan", "Nama obat berhasil diperbarui.");
+    } catch (err) {
+      console.error(err);
+      showAlert("Gagal", "Gagal memperbarui nama obat.");
+    }
+  };
 
   const handleScheduleReminder = async (sched: any) => {
     try {
       const ids = await scheduleReminder(sched);
       if (ids.length > 0) {
-        Alert.alert(
+        showAlert(
           "Pengingat Dipasang",
           `Berhasil memasang ${ids.length} pengingat untuk obat ${sched.namaObat}.`
         );
       }
     } catch (err) {
       console.error(err);
-      Alert.alert("Gagal", "Gagal memasang pengingat.");
+      showAlert("Gagal", "Gagal memasang pengingat.");
     }
   };
 
@@ -96,7 +124,7 @@ export default function HistoryDetailScreen() {
   }, [id]);
 
   const handleDelete = () => {
-    Alert.alert(
+    showAlert(
       "Hapus Riwayat",
       "Apakah kamu yakin ingin menghapus riwayat scan ini?",
       [
@@ -139,7 +167,7 @@ export default function HistoryDetailScreen() {
       .filter(Boolean)
       .join("\n");
     await Clipboard.setStringAsync(text);
-    Alert.alert("Disalin", "Informasi obat telah disalin ke clipboard.");
+    showAlert("Disalin", "Informasi obat telah disalin ke clipboard.");
   };
 
   const styles = StyleSheet.create({
@@ -376,9 +404,51 @@ export default function HistoryDetailScreen() {
         <View style={styles.resultCard}>
           <View style={styles.namaObatCard}>
             <Text style={styles.namaObatLabel}>Nama Obat</Text>
-            <Text style={styles.namaObatValue}>
-              {item.result.namaObat || "Tidak Terdeteksi"}
-            </Text>
+            {isEditingName ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    fontSize: 20,
+                    fontWeight: "800",
+                    color: "#FFFFFF",
+                    borderBottomWidth: 1.5,
+                    borderBottomColor: "rgba(255,255,255,0.6)",
+                    paddingVertical: 4,
+                    paddingHorizontal: 0,
+                  }}
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  autoFocus
+                  placeholder="Nama Obat"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                />
+                <TouchableOpacity onPress={handleSaveName}>
+                  <IconSymbol name="checkmark" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Text style={[styles.namaObatValue, { flex: 1, marginRight: 8 }]} numberOfLines={2}>
+                  {item.result.namaObat || "Tidak Terdeteksi"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditedName(item.result.namaObat);
+                    setIsEditingName(true);
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <IconSymbol name="square.and.pencil" size={18} color="rgba(255,255,255,0.9)" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {OCR_FIELDS.filter((f) => item.result[f.key]).map((field, index, arr) => (
@@ -397,8 +467,26 @@ export default function HistoryDetailScreen() {
 
         {item.result.rawText ? (
           <View style={styles.rawTextCard}>
-            <Text style={styles.rawTextTitle}>Teks Mentah (Raw OCR)</Text>
-            <Text style={styles.rawText}>{item.result.rawText}</Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+              onPress={() => setShowRawText(!showRawText)}
+            >
+              <Text style={styles.rawTextTitle}>Teks Hasil Scan (Raw OCR)</Text>
+              <IconSymbol
+                name={showRawText ? "chevron.up" : "chevron.down"}
+                size={20}
+                color={colors.muted}
+              />
+            </TouchableOpacity>
+            {showRawText && (
+              <Text style={[styles.rawText, { marginTop: 12 }]}>
+                {item.result.rawText}
+              </Text>
+            )}
           </View>
         ) : null}
 

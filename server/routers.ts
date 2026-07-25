@@ -8,6 +8,17 @@ import { invokeLLM, type Message } from "./_core/llm";
 import { storagePut, storageGetSignedUrl } from "./storage";
 import { extractTextWithPaddle } from "./_core/paddleOcr";
 
+function cleanAndParseJson(str: string): any {
+  let cleaned = str.trim();
+  if (cleaned.includes("```")) {
+    const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (match && match[1]) {
+      cleaned = match[1].trim();
+    }
+  }
+  return JSON.parse(cleaned);
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -143,11 +154,24 @@ PENTING: Jika gambar BUKAN label obat, set isLabelObat ke false dan isi field la
 
         const rawContent = response.choices[0]?.message?.content;
         const content = typeof rawContent === "string" ? rawContent : "{}";
-        let ocrResult: Record<string, string>;
+        let ocrResult: Record<string, any>;
         try {
-          ocrResult = JSON.parse(content);
-        } catch {
-          ocrResult = { rawText: content };
+          ocrResult = cleanAndParseJson(content);
+        } catch (e) {
+          console.error("Failed to parse LLM JSON response directly, trying extraction:", e);
+          const firstBrace = content.indexOf("{");
+          const lastBrace = content.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            try {
+              const extracted = content.substring(firstBrace, lastBrace + 1);
+              ocrResult = JSON.parse(extracted);
+            } catch (innerError) {
+              console.error("Failed to parse extracted JSON:", innerError);
+              ocrResult = { rawText: content };
+            }
+          } else {
+            ocrResult = { rawText: content };
+          }
         }
 
         return {
@@ -188,6 +212,13 @@ PENTING: Jika gambar BUKAN label obat, set isLabelObat ke false dan isi field la
             indikasi: z.string().optional(),
             kontraindikasi: z.string().optional(),
             efekSamping: z.string().optional(),
+            tanggalKadaluarsa: z.string().optional(),
+            nomorRegistrasi: z.string().optional(),
+            produsen: z.string().optional(),
+            penyimpanan: z.string().optional(),
+            beratBersih: z.string().optional(),
+            hargaEceranTertinggi: z.string().optional(),
+            rawText: z.string().optional(),
           }),
           /** Riwayat pesan: array {role, content} */
           messages: z.array(
@@ -208,6 +239,13 @@ PENTING: Jika gambar BUKAN label obat, set isLabelObat ke false dan isi field la
           drugContext.indikasi && `Indikasi: ${drugContext.indikasi}`,
           drugContext.kontraindikasi && `Kontraindikasi: ${drugContext.kontraindikasi}`,
           drugContext.efekSamping && `Efek Samping: ${drugContext.efekSamping}`,
+          drugContext.tanggalKadaluarsa && `Tanggal Kadaluarsa: ${drugContext.tanggalKadaluarsa}`,
+          drugContext.nomorRegistrasi && `Nomor Registrasi: ${drugContext.nomorRegistrasi}`,
+          drugContext.produsen && `Produsen: ${drugContext.produsen}`,
+          drugContext.penyimpanan && `Cara Penyimpanan: ${drugContext.penyimpanan}`,
+          drugContext.beratBersih && `Berat Bersih/Isi: ${drugContext.beratBersih}`,
+          drugContext.hargaEceranTertinggi && `HET: ${drugContext.hargaEceranTertinggi}`,
+          drugContext.rawText && `Teks Mentah OCR:\n${drugContext.rawText}`,
         ]
           .filter(Boolean)
           .join("\n");
@@ -335,14 +373,32 @@ Kembalikan hasil dalam format JSON dengan struktur berikut:
         };
 
         try {
-          result = JSON.parse(content);
-        } catch {
-          result = {
-            ringkasan: "Tidak dapat menganalisis interaksi saat ini.",
-            levelKeseluruhan: "perhatian",
-            interaksi: [],
-            catatanUmum: "Konsultasikan dengan dokter atau apoteker sebelum mengonsumsi beberapa obat sekaligus.",
-          };
+          result = cleanAndParseJson(content);
+        } catch (e) {
+          console.error("Failed to parse LLM JSON checkInteraction directly, trying extraction:", e);
+          const firstBrace = content.indexOf("{");
+          const lastBrace = content.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            try {
+              const extracted = content.substring(firstBrace, lastBrace + 1);
+              result = JSON.parse(extracted);
+            } catch (innerError) {
+              console.error("Failed to parse extracted JSON for checkInteraction:", innerError);
+              result = {
+                ringkasan: "Tidak dapat menganalisis interaksi saat ini.",
+                levelKeseluruhan: "perhatian",
+                interaksi: [],
+                catatanUmum: "Konsultasikan dengan dokter atau apoteker sebelum mengonsumsi beberapa obat sekaligus.",
+              };
+            }
+          } else {
+            result = {
+              ringkasan: "Tidak dapat menganalisis interaksi saat ini.",
+              levelKeseluruhan: "perhatian",
+              interaksi: [],
+              catatanUmum: "Konsultasikan dengan dokter atau apoteker sebelum mengonsumsi beberapa obat sekaligus.",
+            };
+          }
         }
 
         return result;

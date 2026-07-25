@@ -117,6 +117,13 @@ export default function ChatScreen() {
         indikasi: item.result.indikasi,
         kontraindikasi: item.result.kontraindikasi,
         efekSamping: item.result.efekSamping,
+        tanggalKadaluarsa: item.result.tanggalKadaluarsa,
+        nomorRegistrasi: item.result.nomorRegistrasi,
+        produsen: item.result.produsen,
+        penyimpanan: item.result.penyimpanan,
+        beratBersih: item.result.beratBersih,
+        hargaEceranTertinggi: item.result.hargaEceranTertinggi,
+        rawText: item.result.rawText,
       },
       messages: chatHistory,
     });

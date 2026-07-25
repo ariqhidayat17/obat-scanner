@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -34,9 +34,61 @@ export function ReminderModal({
   const colors = useColors();
 
   const [dosis, setDosis] = useState(dosisDefault);
-  const [frequency, setFrequency] = useState<1 | 2 | 3>(1);
+  const [frequency, setFrequency] = useState<1 | 2 | 3 | 4>(1);
   const [startHour, setStartHour] = useState<number>(8); // Default 08:00
   const [duration, setDuration] = useState<number>(7); // Default 7 hari
+
+  useEffect(() => {
+    if (visible) {
+      let parsedFreq: 1 | 2 | 3 | 4 = 1;
+      let parsedDose = dosisDefault || "1 Tablet";
+
+      const lowerText = (dosisDefault || "").toLowerCase();
+
+      // Cari frekuensi (contoh: "3 x sehari", "sehari 2 kali", "1x sehari", "4 kali sehari", "tiap 6 jam" -> 4x sehari, "tiap 8 jam" -> 3x sehari)
+      const freqRegex = /(?:(\d+)\s*(?:x|kali)\s*sehari)|(?:sehari\s*(\d+)\s*(?:x|kali))/i;
+      const freqMatch = lowerText.match(freqRegex);
+      if (freqMatch) {
+        const val = parseInt(freqMatch[1] || freqMatch[2], 10);
+        if (val === 1 || val === 2 || val === 3 || val === 4) {
+          parsedFreq = val as 1 | 2 | 3 | 4;
+        }
+      } else if (lowerText.includes("tiap 6 jam") || lowerText.includes("setiap 6 jam")) {
+        parsedFreq = 4;
+      } else if (lowerText.includes("tiap 8 jam") || lowerText.includes("setiap 8 jam")) {
+        parsedFreq = 3;
+      } else if (lowerText.includes("tiap 12 jam") || lowerText.includes("setiap 12 jam")) {
+        parsedFreq = 2;
+      }
+
+      // Bersihkan / ambil dosis kuantitas & satuan jika ada
+      // misal dari "3x sehari 1 tablet" kita ingin ambil "1 tablet"
+      const doseRegex = /(\d+)\s*(tablet|kapsul|kapsul lunak|pil|sendok|ml|gr|mg|sachet|tetes)/i;
+      const doseMatch = lowerText.match(doseRegex);
+      if (doseMatch) {
+        const qty = doseMatch[1];
+        let unit = doseMatch[2];
+        unit = unit.charAt(0).toUpperCase() + unit.slice(1);
+        if (unit.toLowerCase() === "sendok") {
+          if (lowerText.includes("makan")) {
+            unit = "Sendok Makan";
+          } else if (lowerText.includes("teh")) {
+            unit = "Sendok Teh";
+          }
+        }
+        parsedDose = `${qty} ${unit}`;
+      } else {
+        if (dosisDefault && dosisDefault.length > 0 && dosisDefault.length < 40) {
+          parsedDose = dosisDefault;
+        }
+      }
+
+      setDosis(parsedDose);
+      setFrequency(parsedFreq);
+      setStartHour(8);
+      setDuration(7);
+    }
+  }, [visible, dosisDefault]);
 
   const durations = [3, 5, 7, 14, 30];
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -248,7 +300,7 @@ export function ReminderModal({
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Frekuensi Sehari</Text>
                   <View style={styles.freqRow}>
-                    {([1, 2, 3] as const).map((f) => (
+                    {([1, 2, 3, 4] as const).map((f) => (
                       <TouchableOpacity
                         key={f}
                         style={[

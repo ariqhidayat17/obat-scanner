@@ -6,8 +6,8 @@ import * as Notifications from "expo-notifications";
 export interface ReminderSchedule {
   namaObat: string;
   dosis: string;
-  /** Berapa kali sehari: 1, 2, atau 3 */
-  frequencyPerDay: 1 | 2 | 3;
+  /** Berapa kali sehari: 1, 2, 3, atau 4 */
+  frequencyPerDay: 1 | 2 | 3 | 4;
   /** Jam pertama minum (0–23) */
   startHour: number;
   /** Durasi pengingat dalam hari */

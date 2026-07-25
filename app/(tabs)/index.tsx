@@ -6,7 +6,6 @@ import {
   FlatList,
   Image,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -21,6 +20,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { loadHistoryImage } from "@/lib/image-persistence";
 import type { ScanHistory } from "@/shared/ocr-types";
+import { showAlert } from "@/lib/utils";
 
 const HISTORY_KEY = "obatscan_history";
 
@@ -83,7 +83,7 @@ export default function HomeScreen() {
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
+      showAlert(
         "Izin Diperlukan",
         "ObatScan memerlukan akses ke galeri foto untuk memilih gambar label obat.",
         [{ text: "OK" }]
@@ -112,7 +112,7 @@ export default function HomeScreen() {
           params: { imageUri: compressed.uri },
         });
       } catch (err) {
-        Alert.alert("Error", "Gagal memproses gambar. Coba lagi.");
+        showAlert("Error", "Gagal memproses gambar. Coba lagi.");
         console.error("[Gallery] compress error:", err);
       } finally {
         setIsCompressing(false);
@@ -134,87 +134,117 @@ export default function HomeScreen() {
       paddingHorizontal: 20,
       paddingTop: 16,
       paddingBottom: 8,
-      gap: 10,
+      gap: 12,
     },
     logoContainer: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
+      width: 44,
+      height: 44,
+      borderRadius: 12,
       overflow: "hidden",
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     logo: {
-      width: 40,
-      height: 40,
+      width: 32,
+      height: 32,
     },
     headerTitle: {
-      fontSize: 22,
-      fontWeight: "700",
+      fontSize: 20,
+      fontWeight: "800",
       color: colors.foreground,
     },
     headerSubtitle: {
       fontSize: 13,
       color: colors.muted,
     },
-    heroCard: {
+    actionsCard: {
       marginHorizontal: 20,
       marginTop: 16,
+      backgroundColor: colors.surface,
       borderRadius: 20,
-      padding: 24,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      gap: 16,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
     },
-    heroIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: "rgba(255,255,255,0.2)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    heroTitle: {
-      fontSize: 20,
-      fontWeight: "700",
-      color: "#FFFFFF",
-      textAlign: "center",
-    },
-    heroDesc: {
-      fontSize: 14,
-      color: "rgba(255,255,255,0.85)",
-      textAlign: "center",
-      lineHeight: 20,
-    },
-    scanBtn: {
-      backgroundColor: "#FFFFFF",
-      paddingHorizontal: 28,
-      paddingVertical: 14,
-      borderRadius: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    scanBtnText: {
+    actionsTitle: {
       fontSize: 16,
       fontWeight: "700",
-      color: colors.primary,
+      color: colors.foreground,
+      marginBottom: 4,
     },
-    galleryBtn: {
-      marginHorizontal: 20,
-      marginTop: 12,
-      borderRadius: 14,
-      paddingVertical: 14,
+    actionsDesc: {
+      fontSize: 13,
+      color: colors.muted,
+      marginBottom: 16,
+      lineHeight: 18,
+    },
+    btnRow: {
       flexDirection: "row",
+      gap: 12,
+    },
+    primaryBtn: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingVertical: 14,
       alignItems: "center",
       justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+    primaryBtnText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    secondaryBtn: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
       gap: 8,
       borderWidth: 1.5,
       borderColor: colors.primary,
-      backgroundColor: colors.surface,
     },
-    galleryBtnText: {
-      fontSize: 15,
-      fontWeight: "600",
+    secondaryBtnText: {
       color: colors.primary,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    tipsCard: {
+      marginHorizontal: 20,
+      marginTop: 12,
+      backgroundColor: `${colors.primary}08`,
+      borderRadius: 14,
+      padding: 16,
+      flexDirection: "row",
+      gap: 12,
+      alignItems: "flex-start",
+    },
+    tipsContent: {
+      flex: 1,
+    },
+    tipsTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.primary,
+      marginBottom: 2,
+    },
+    tipsDesc: {
+      fontSize: 12,
+      color: colors.muted,
+      lineHeight: 16,
     },
     sectionHeader: {
       flexDirection: "row",
@@ -225,7 +255,7 @@ export default function HomeScreen() {
       marginBottom: 10,
     },
     sectionTitle: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "700",
       color: colors.foreground,
     },
@@ -245,19 +275,23 @@ export default function HomeScreen() {
       gap: 12,
       borderWidth: 1,
       borderColor: colors.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.02,
+      shadowRadius: 4,
+      elevation: 1,
     },
     historyThumb: {
-      width: 56,
-      height: 56,
+      width: 50,
+      height: 50,
       borderRadius: 10,
-      backgroundColor: colors.border,
     },
     historyInfo: {
       flex: 1,
     },
     historyName: {
       fontSize: 14,
-      fontWeight: "600",
+      fontWeight: "700",
       color: colors.foreground,
       marginBottom: 2,
     },
@@ -267,14 +301,20 @@ export default function HomeScreen() {
     },
     emptyState: {
       alignItems: "center",
-      paddingVertical: 32,
+      paddingVertical: 40,
       paddingHorizontal: 40,
+      backgroundColor: colors.surface,
+      marginHorizontal: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: "dashed",
     },
     emptyText: {
-      fontSize: 14,
+      fontSize: 13,
       color: colors.muted,
       textAlign: "center",
-      lineHeight: 20,
+      lineHeight: 18,
       marginTop: 8,
     },
   });
@@ -296,49 +336,58 @@ export default function HomeScreen() {
               </View>
               <View>
                 <Text style={styles.headerTitle}>ObatScan</Text>
-                <Text style={styles.headerSubtitle}>OCR Label Obat</Text>
+                <Text style={styles.headerSubtitle}>Halo! Sehat Selalu 👋</Text>
               </View>
             </View>
 
-            {/* Hero Card */}
-            <View style={styles.heroCard}>
-              <View style={styles.heroIcon}>
-                <IconSymbol name="camera.fill" size={36} color="#FFFFFF" />
-              </View>
-              <Text style={styles.heroTitle}>Scan Label Obat</Text>
-              <Text style={styles.heroDesc}>
-                Arahkan kamera ke label obat untuk membaca informasi seperti nama, dosis, komposisi, dan tanggal kadaluarsa secara otomatis.
+            {/* Quick Actions Panel */}
+            <View style={styles.actionsCard}>
+              <Text style={styles.actionsTitle}>Pindai Label Obat</Text>
+              <Text style={styles.actionsDesc}>
+                Ambil foto kemasan obat atau pilih dari galeri untuk mendeteksi dosis, aturan pakai, dan info penting secara instan.
               </Text>
-              <TouchableOpacity
-                style={styles.scanBtn}
-                onPress={handleOpenCamera}
-                activeOpacity={0.85}
-              >
-                <IconSymbol name="camera.fill" size={20} color={colors.primary} />
-                <Text style={styles.scanBtnText}>Buka Kamera</Text>
-              </TouchableOpacity>
+              <View style={styles.btnRow}>
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={handleOpenCamera}
+                  activeOpacity={0.8}
+                >
+                  <IconSymbol name="camera.fill" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryBtnText}>Buka Kamera</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, isCompressing && { opacity: 0.6 }]}
+                  onPress={handlePickFromGallery}
+                  activeOpacity={0.8}
+                  disabled={isCompressing}
+                >
+                  {isCompressing ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <IconSymbol name="photo" size={18} color={colors.primary} />
+                  )}
+                  <Text style={styles.secondaryBtnText}>
+                    {isCompressing ? "Memproses..." : "Pilih Galeri"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {/* Gallery Button */}
-            <TouchableOpacity
-              style={[styles.galleryBtn, isCompressing && { opacity: 0.6 }]}
-              onPress={handlePickFromGallery}
-              activeOpacity={0.8}
-              disabled={isCompressing}
-            >
-              {isCompressing ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <IconSymbol name="photo" size={20} color={colors.primary} />
-              )}
-              <Text style={styles.galleryBtnText}>
-                {isCompressing ? "Memproses..." : "Pilih dari Galeri"}
-              </Text>
-            </TouchableOpacity>
+            {/* Info / Tips Card */}
+            <View style={styles.tipsCard}>
+              <IconSymbol name="info.circle.fill" size={20} color={colors.primary} style={{ marginTop: 2 }} />
+              <View style={styles.tipsContent}>
+                <Text style={styles.tipsTitle}>Tips Hasil Pindaian Akurat</Text>
+                <Text style={styles.tipsDesc}>
+                  Posisikan kemasan obat di area terang dan pastikan teks pada label tidak blur atau terlipat agar hasil pembacaan optimal.
+                </Text>
+              </View>
+            </View>
 
             {/* Recent History Header */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Riwayat Terbaru</Text>
+              <Text style={styles.sectionTitle}>Riwayat Pindaian</Text>
               {recentHistory.length > 0 && (
                 <TouchableOpacity onPress={() => router.push("/history")}>
                   <Text style={styles.seeAll}>Lihat Semua</Text>
@@ -377,9 +426,9 @@ export default function HomeScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <IconSymbol name="doc.text.fill" size={40} color={colors.border} />
+            <IconSymbol name="doc.text.fill" size={32} color={colors.border} />
             <Text style={styles.emptyText}>
-              Belum ada riwayat scan.{"\n"}Mulai dengan memotret label obat.
+              Belum ada riwayat pindaian.{"\n"}Ketuk tombol di atas untuk memulai.
             </Text>
           </View>
         }

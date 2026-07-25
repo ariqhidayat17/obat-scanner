@@ -6,7 +6,6 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -17,6 +16,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { loadHistoryImage, deleteHistoryImage } from "@/lib/image-persistence";
 import type { ScanHistory } from "@/shared/ocr-types";
+import { showAlert } from "@/lib/utils";
 
 const HISTORY_KEY = "obatscan_history";
 
@@ -62,7 +62,7 @@ export default function HistoryScreen() {
           return prev.filter((id) => id !== item.id);
         } else {
           if (prev.length >= 5) {
-            Alert.alert("Batas Maksimal", "Kamu hanya bisa memilih maksimal 5 obat untuk dicek interaksinya.");
+            showAlert("Batas Maksimal", "Kamu hanya bisa memilih maksimal 5 obat untuk dicek interaksinya.");
             return prev;
           }
           return [...prev, item.id];
@@ -127,7 +127,7 @@ export default function HistoryScreen() {
   );
 
   const handleDelete = (id: string) => {
-    Alert.alert(
+    showAlert(
       "Hapus Riwayat",
       "Apakah kamu yakin ingin menghapus riwayat scan ini?",
       [
@@ -152,7 +152,7 @@ export default function HistoryScreen() {
 
   const handleClearAll = () => {
     if (history.length === 0) return;
-    Alert.alert(
+    showAlert(
       "Hapus Semua Riwayat",
       "Apakah kamu yakin ingin menghapus semua riwayat scan?",
       [

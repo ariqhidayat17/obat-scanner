@@ -43,33 +43,60 @@ PADDLE_OCR_URL=http://localhost:8001
 ```
 
 ### 3. Setup Python OCR Service (PaddleOCR)
-Lakukan pembuatan Virtual Environment Python agar dependensi terisolasi dengan aman:
+Lakukan pembuatan Virtual Environment Python agar dependensi terisolasi dengan aman. 
+
+> **PENTING (macOS):** PaddlePaddle memerlukan OpenMP runtime. Pastikan Anda menginstal `libomp` menggunakan Homebrew agar python tidak crash:
+> ```bash
+> brew install libomp
+> ```
+
+Langkah pembuatan virtual environment:
 ```bash
-# Membuat virtualenv di dalam direktori ocr-service
-python3 -m venv ocr-service/venv
+# Membuat virtualenv .venv di dalam direktori ocr-service
+python3 -m venv ocr-service/.venv
 
 # Mengaktifkan virtualenv
-source ocr-service/venv/bin/activate
+source ocr-service/.venv/bin/activate
 
 # Menginstall library yang diperlukan (FastAPI, Uvicorn, PaddleOCR, Pillow)
 pip install -r ocr-service/requirements.txt
 ```
 
+Untuk detail lengkap tentang setup, konfigurasi C++ Build Tools Windows, integrasi API, dan panduan troubleshooting mendalam, silakan baca [Dokumentasi Lengkap PaddleOCR Sidecar Service (ocr-service/README.md)](ocr-service/README.md).
+
 ---
 
 ## 📡 Cara Menjalankan Server (Lokal)
 
-Anda perlu menjalankan dua service ini secara bersamaan di terminal terpisah:
+Anda perlu menjalankan dua service ini secara bersamaan. Ada dua cara:
 
-### Terminal 1: Jalankan Python OCR Service
-Mengaktifkan OCR engine lokal yang berjalan di port `8001`.
+### Cara Praktis: Jalankan Semua Sekaligus
+Anda dapat menjalankan backend Node.js, Metro Bundler, dan Python OCR Service secara otomatis dalam satu terminal dengan script helper:
 ```bash
-source ocr-service/venv/bin/activate
-python ocr-service/main.py
+./start-all-local.sh
 ```
+
+### Cara Manual (Terminal Terpisah)
+
+#### Terminal 1: Jalankan Python OCR Service
+Mengaktifkan OCR engine lokal yang berjalan di port `8001`.
+* **Untuk Pengujian Emulator:**
+  ```bash
+  source ocr-service/.venv/bin/activate
+  python ocr-service/main.py
+  ```
+* **Untuk Pengujian HP Fisik (Menggunakan ngrok):**
+  Layanan lokal tidak bisa diakses dari HP fisik di jaringan seluler/Wi-Fi berbeda secara langsung. Gunakan script ngrok untuk membuat tunnel HTTPS:
+  ```bash
+  cd ocr-service
+  chmod +x start-with-ngrok.sh
+  ./start-with-ngrok.sh
+  ```
+  Salin URL HTTPS ngrok yang dihasilkan dan pasang di `.env` sebagai `PADDLE_OCR_URL`.
+
 *(Pada run pertama, server akan otomatis mendownload model deteksi teks resmi dari server Paddle Paddle. Proses download hanya terjadi satu kali).*
 
-### Terminal 2: Jalankan Backend Node.js & Metro Bundler
+#### Terminal 2: Jalankan Backend Node.js & Metro Bundler
 Mengaktifkan backend API utama (port `8080`) dan Metro bundler React Native (port `8081`).
 ```bash
 npm run dev

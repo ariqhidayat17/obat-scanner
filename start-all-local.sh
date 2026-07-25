@@ -4,6 +4,11 @@
 
 set -e
 
+# Ensure Java 17 and Android SDK are available (required for Android builds)
+export JAVA_HOME="/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+
 BACKEND_PORT=3000
 OCR_PORT=8001
 VENV_DIR="ocr-service/.venv"
@@ -27,9 +32,6 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# Save original PATH (before venv changes it)
-ORIGINAL_PATH="$PATH"
-
 # Setup Python venv
 if [ ! -d "$VENV_DIR" ]; then
     echo "📦 Creating Python virtual environment..."
@@ -37,8 +39,8 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 source "$VENV_DIR/bin/activate"
 
-# Restore original PATH so node/pnpm/npm are still accessible
-export PATH="$ORIGINAL_PATH"
+# Ensure node/pnpm/npm are still accessible alongside venv
+export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
 
 # Find pnpm or npm
 PNPM_CMD=""

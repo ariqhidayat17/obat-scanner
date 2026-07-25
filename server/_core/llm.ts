@@ -201,26 +201,54 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () => {
-  if (!ENV.forgeApiUrl || ENV.forgeApiUrl.trim().length === 0) {
-    // Default Forge endpoint (Manus platform)
-    return "https://forge.manus.im/v1/chat/completions";
+type Provider = {
+  name: string;
+  url: string;
+  key: string;
+  model: string;
+};
+
+const getProviders = (): Provider[] => {
+  const providers: Provider[] = [];
+
+  if (ENV.geminiApiKey) {
+    providers.push({
+      name: "Gemini",
+      url: ENV.geminiApiUrl,
+      key: ENV.geminiApiKey,
+      model: "gemini-2.0-flash",
+    });
   }
-  const base = ENV.forgeApiUrl.replace(/\/$/, "");
-  // Jika URL sudah berisi path chat/completions (mis. Google Gemini), gunakan langsung
-  if (base.includes("/chat/completions")) {
-    return base;
+
+  if (ENV.openRouterApiKey) {
+    providers.push({
+      name: "OpenRouter",
+      url: ENV.openRouterApiUrl,
+      key: ENV.openRouterApiKey,
+      model: "google/gemini-2.5-flash",
+    });
   }
-  // Forge / OpenAI-style: tambahkan /v1/chat/completions
-  return `${base}/v1/chat/completions`;
+
+  if (ENV.forgeApiKey && ENV.forgeApiUrl) {
+    const base = ENV.forgeApiUrl.replace(/\/$/, "");
+    const url = base.includes("/chat/completions") ? base : `${base}/v1/chat/completions`;
+    providers.push({
+      name: "Forge",
+      url,
+      key: ENV.forgeApiKey,
+      model: "gemini-2.0-flash",
+    });
+  }
+
+  return providers;
 };
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
+  const providers = getProviders();
+  if (providers.length === 0) {
     throw new Error(
-      "API key tidak dikonfigurasi. Set salah satu env variable: " +
-      "BUILT_IN_FORGE_API_KEY (Manus), GEMINI_API_KEY (Google), atau OPENAI_API_KEY (OpenAI) " +
-      "di file .env di root project."
+      "Tidak ada API key LLM yang dikonfigurasi. " +
+      "Set GEMINI_API_KEY, OPENROUTER_API_KEY, atau BUILT_IN_FORGE_API_KEY di .env"
     );
   }
 };
@@ -265,9 +293,10 @@ const normalizeResponseFormat = ({
   };
 };
 
-export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
-  assertApiKey();
-
+async function tryProvider(
+  provider: Provider,
+  params: InvokeParams,
+): Promise<InvokeResult | null> {
   const {
     messages,
     tools,
@@ -277,12 +306,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
     responseFormat,
     response_format,
+    maxTokens,
+    max_tokens,
   } = params;
 
-  const modelName = "gemini-3.5-flash";
-
   const payload: Record<string, unknown> = {
-    model: modelName,
+    model: provider.model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -295,41 +324,57 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768;
+  payload.max_tokens = maxTokens || max_tokens || 2000;
 
-  // Blok "thinking" hanya berlaku untuk model reasoning (pro/think variants).
-  // gemini-2.5-flash TIDAK mendukung parameter ini — mengirimkannya menyebabkan Bad Request.
-  const isReasoningModel = /pro|think/i.test(modelName);
-  if (isReasoningModel) {
-    payload.thinking = {
-      budget_tokens: 128,
-    };
+  // OpenRouter specific headers
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    authorization: `Bearer ${provider.key}`,
+  };
+  if (provider.name === "OpenRouter") {
+    headers["HTTP-Referer"] = "https://obat-scanner.app";
+    headers["X-Title"] = "ObatScanner";
   }
 
-  const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat,
-    response_format,
-    outputSchema,
-    output_schema,
-  });
-
-  if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
-  }
-
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(provider.url, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
+    // Gemini 429 = quota exhausted, try next provider
+    if (response.status === 429 || response.status === 500) {
+      console.warn(`[LLM] ${provider.name} failed (${response.status}), falling back...`);
+      return null;
+    }
+    throw new Error(
+      `LLM invoke failed on ${provider.name}: ${response.status} ${response.statusText} – ${errorText}`,
+    );
   }
 
   return (await response.json()) as InvokeResult;
+}
+
+export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
+  assertApiKey();
+
+  const providers = getProviders();
+  let lastError: Error | null = null;
+
+  for (const provider of providers) {
+    try {
+      const result = await tryProvider(provider, params);
+      if (result) {
+        console.log(`[LLM] ${provider.name} success`);
+        return result;
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[LLM] ${provider.name} error:`, lastError.message);
+    }
+  }
+
+  throw lastError || new Error("Semua provider LLM gagal");
 }

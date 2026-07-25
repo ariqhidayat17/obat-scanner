@@ -6,7 +6,7 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -26,6 +26,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { getImageBase64, clearImageBase64 } from "@/lib/image-store";
+import { showAlert } from "@/lib/utils";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { saveHistoryImage } from "@/lib/image-persistence";
 import type { OcrResult, ScanHistory } from "@/shared/ocr-types";
@@ -166,6 +167,9 @@ export default function ResultScreen() {
   const [isSaved, setIsSaved] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isReminderVisible, setIsReminderVisible] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [showRawText, setShowRawText] = useState(false);
 
   const scanMutation = trpc.ocr.scan.useMutation({
     onSuccess: (data) => {
@@ -176,7 +180,7 @@ export default function ResultScreen() {
       }
     },
     onError: (err) => {
-      Alert.alert(
+      showAlert(
         "Gagal Memproses",
         `Terjadi kesalahan saat membaca label obat: ${err.message}`,
         [
@@ -191,7 +195,7 @@ export default function ResultScreen() {
     // Ambil base64 dari memory store — bukan dari router params
     const pending = getImageBase64();
     if (!pending?.base64) {
-      Alert.alert("Error", "Data gambar tidak tersedia.", [
+      showAlert("Error", "Data gambar tidak tersedia.", [
         { text: "Kembali", onPress: () => router.back() },
       ]);
       return;
@@ -239,11 +243,11 @@ export default function ResultScreen() {
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
       setIsSaved(true);
       setSavedId(entryId);
-      Alert.alert("Tersimpan", "Hasil scan berhasil disimpan ke riwayat.");
+      showAlert("Tersimpan", "Hasil scan berhasil disimpan ke riwayat.");
       return entryId;
     } catch (err) {
       console.error("[saveToHistory] Gagal menyimpan:", err);
-      Alert.alert("Gagal", "Tidak dapat menyimpan ke riwayat.");
+      showAlert("Gagal", "Tidak dapat menyimpan ke riwayat.");
       return null;
     }
   };
@@ -285,14 +289,14 @@ export default function ResultScreen() {
     try {
       const ids = await scheduleReminder(sched);
       if (ids.length > 0) {
-        Alert.alert(
+        showAlert(
           "Pengingat Dipasang",
           `Berhasil memasang ${ids.length} pengingat untuk obat ${sched.namaObat}.`
         );
       }
     } catch (err) {
       console.error(err);
-      Alert.alert("Gagal", "Gagal memasang pengingat.");
+      showAlert("Gagal", "Gagal memasang pengingat.");
     }
   };
 
@@ -313,7 +317,7 @@ export default function ResultScreen() {
       .join("\n");
 
     await Clipboard.setStringAsync(text);
-    Alert.alert("Disalin", "Informasi obat telah disalin ke clipboard.");
+    showAlert("Disalin", "Informasi obat telah disalin ke clipboard.");
   };
 
   const styles = StyleSheet.create({
@@ -617,9 +621,66 @@ export default function ResultScreen() {
             <View style={styles.resultCard}>
               <View style={styles.namaObatCard}>
                 <Text style={styles.namaObatLabel}>Nama Obat</Text>
-                <Text style={styles.namaObatValue}>
-                  {ocrResult.namaObat || "Tidak Terdeteksi"}
-                </Text>
+                {isEditingName ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        fontSize: 20,
+                        fontWeight: "800",
+                        color: "#FFFFFF",
+                        borderBottomWidth: 1.5,
+                        borderBottomColor: "rgba(255,255,255,0.6)",
+                        paddingVertical: 4,
+                        paddingHorizontal: 0,
+                      }}
+                      value={editedName}
+                      onChangeText={setEditedName}
+                      autoFocus
+                      placeholder="Nama Obat"
+                      placeholderTextColor="rgba(255,255,255,0.4)"
+                    />
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const updated = { ...ocrResult, namaObat: editedName.trim() };
+                        setOcrResult(updated);
+                        setIsEditingName(false);
+                        if (isSaved && savedId) {
+                          try {
+                            const raw = await AsyncStorage.getItem(HISTORY_KEY);
+                            if (raw) {
+                              const history: ScanHistory[] = JSON.parse(raw);
+                              const foundIdx = history.findIndex((h) => h.id === savedId);
+                              if (foundIdx !== -1) {
+                                history[foundIdx].result = updated;
+                                await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+                              }
+                            }
+                          } catch (err) {
+                            console.error("[updateHistoryName] Error:", err);
+                          }
+                        }
+                      }}
+                    >
+                      <IconSymbol name="checkmark" size={22} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={[styles.namaObatValue, { flex: 1, marginRight: 8 }]} numberOfLines={2}>
+                      {ocrResult.namaObat || "Tidak Terdeteksi"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditedName(ocrResult.namaObat);
+                        setIsEditingName(true);
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <IconSymbol name="square.and.pencil" size={18} color="rgba(255,255,255,0.9)" />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {OCR_FIELDS.filter(
@@ -638,11 +699,29 @@ export default function ResultScreen() {
               ))}
             </View>
 
-            {/* Raw Text */}
+            {/* Raw Text Collapsible */}
             {ocrResult.rawText ? (
               <View style={styles.rawTextCard}>
-                <Text style={styles.rawTextTitle}>Teks Mentah (Raw OCR)</Text>
-                <Text style={styles.rawText}>{ocrResult.rawText}</Text>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  onPress={() => setShowRawText(!showRawText)}
+                >
+                  <Text style={styles.rawTextTitle}>Teks Hasil Scan (Raw OCR)</Text>
+                  <IconSymbol
+                    name={showRawText ? "chevron.up" : "chevron.down"}
+                    size={20}
+                    color={colors.muted}
+                  />
+                </TouchableOpacity>
+                {showRawText && (
+                  <Text style={[styles.rawText, { marginTop: 12 }]}>
+                    {ocrResult.rawText}
+                  </Text>
+                )}
               </View>
             ) : null}
 
@@ -655,7 +734,7 @@ export default function ResultScreen() {
                   if (id) {
                     router.push(`/chat/${id}`);
                   } else {
-                    Alert.alert("Gagal", "Tidak dapat memulai chat.");
+                    showAlert("Gagal", "Tidak dapat memulai chat.");
                   }
                 }}
               >
@@ -670,7 +749,7 @@ export default function ResultScreen() {
                   if (id) {
                     setIsReminderVisible(true);
                   } else {
-                    Alert.alert("Gagal", "Tidak dapat memasang pengingat.");
+                    showAlert("Gagal", "Tidak dapat memasang pengingat.");
                   }
                 }}
               >

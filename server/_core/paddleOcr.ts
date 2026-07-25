@@ -12,22 +12,20 @@ export interface PaddleOcrResult {
  * Jika service offline atau gagal, melempar error agar caller bisa melakukan fallback.
  */
 export async function extractTextWithPaddle(imageBase64: string): Promise<string> {
-  if (!ENV.paddleOcrUrl) {
-    throw new Error("PaddleOCR service URL is not configured");
-  }
+  // Use configured PaddleOCR URL from environment
+  const targetUrl = `${ENV.paddleOcrUrl.replace(/\/$/, "")}/ocr`;
 
   // Remove data URI prefix if present
   const base64Data = imageBase64.includes(",") 
     ? imageBase64.split(",")[1] 
     : imageBase64;
 
-  const url = `${ENV.paddleOcrUrl.replace(/\/$/, "")}/ocr`;
-
   try {
-    const res = await fetch(url, {
+    const res = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({
         imageBase64: base64Data,

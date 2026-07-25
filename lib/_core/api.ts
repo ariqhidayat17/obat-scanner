@@ -10,6 +10,7 @@ type ApiResponse<T> = {
 export async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
     ...((options.headers as Record<string, string>) || {}),
   };
 
